@@ -1,0 +1,41 @@
+# Development artifacts
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+dist/
+build/
+
+# Environment files
+.env
+.venv/
+venv/
+myenv/
+ENV/
+
+# Logs and outputs
+logs/
+outputs/
+*.log
+*.csv
+*.h5
+*.pt
+
+# CARLA binaries
+CARLA_0.9.15/
+*.exe
+*.zip
+*.bin
+CarlaUE4/Binaries/
+CarlaUE4/Plugins/
+Engine/
+
+
+# IDE specific
+.vscode/
+.idea/
+*.iml
+
+# Local overrides
+override/
+local_settings.py
