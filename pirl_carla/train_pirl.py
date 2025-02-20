@@ -26,7 +26,7 @@ def main():
     # Get state and action dimensions from environment
     state = env.reset()
     state_dim = len(state)  # Should be 6: [x, y, theta, v, distance_to_target, angle_to_target]
-    action_dim = 2  # [throttle, steering]
+    action_dim = 3  # [throttle, steering, brake]
     
     print(f"\nState dimension: {state_dim}")
     print(f"Action dimension: {action_dim}")

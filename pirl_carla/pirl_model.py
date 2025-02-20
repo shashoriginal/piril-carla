@@ -9,7 +9,7 @@ class PhysicsInformedPolicy(nn.Module):
     
     def __init__(self, 
                  state_dim: int = 6,  # [x, y, theta, v, distance_to_target, angle_to_target]
-                 action_dim: int = 2,  # [throttle, steering]
+                 action_dim: int = 3,  # [throttle, steering, brake]
                  hidden_dim: int = 256):
         super().__init__()
         
@@ -60,32 +60,39 @@ class PhysicsInformedPolicy(nn.Module):
                     action: torch.Tensor,
                     next_state: torch.Tensor,
                     L: float = 2.5,
-                    dt: float = 0.05) -> torch.Tensor:
-        """Compute physics consistency loss based on bicycle model
+                    dt: float = 0.05,
+                    mu: float = 0.7) -> torch.Tensor:
+        """Compute physics consistency loss based on enhanced bicycle model
         
         Args:
             state: Current state [x, y, theta, v, distance_to_target, angle_to_target]
-            action: Applied action [throttle, steering]
+            action: Applied action [throttle, steering, brake]
             next_state: Next state
             L: Wheelbase length
             dt: Timestep
+            mu: Friction coefficient
             
         Returns:
             loss: Physics consistency loss
         """
         # Extract state components
         x, y, theta, v = torch.split(state[..., :4], 1, dim=-1)
-        throttle, steer = torch.split(action, 1, dim=-1)
+        throttle, steer, brake = torch.split(action, 1, dim=-1)
         next_x, next_y, next_theta, next_v = torch.split(next_state[..., :4], 1, dim=-1)
         
-        # Convert throttle to acceleration (simple model)
-        a = throttle * 5.0  # max acceleration of 5 m/s^2
+        # Convert throttle to acceleration (considering friction)
+        max_accel = 5.0  # m/s^2
+        a = throttle * max_accel * (1 - mu * torch.abs(steer))
         
-        # Bicycle model equations
+        # Convert brake to deceleration
+        max_brake = 8.0  # m/s^2
+        brake_decel = brake * max_brake * mu
+        
+        # Enhanced bicycle model equations
         x_dot = v * torch.cos(theta)
         y_dot = v * torch.sin(theta)
         theta_dot = (v / L) * torch.tan(steer)
-        v_dot = a
+        v_dot = a - brake_decel
         
         # Predicted next state using Euler integration
         pred_x = x + x_dot * dt
@@ -99,7 +106,14 @@ class PhysicsInformedPolicy(nn.Module):
             torch.cat([next_x, next_y, next_theta, next_v], dim=-1)
         )
         
-        return position_loss
+        # Velocity component loss
+        forward_vel_loss = F.mse_loss(v * torch.cos(theta), next_v * torch.cos(next_theta))
+        lateral_vel_loss = F.mse_loss(v * torch.sin(theta), next_v * torch.sin(next_theta))
+        
+        # Combine losses
+        total_loss = position_loss + 0.5 * forward_vel_loss + 0.5 * lateral_vel_loss
+        
+        return total_loss
     
     def collision_loss(self,
                       state: torch.Tensor,
@@ -135,7 +149,7 @@ class PhysicsInformedSAC(nn.Module):
     
     def __init__(self,
                  state_dim: int = 6,  # [x, y, theta, v, distance_to_target, angle_to_target]
-                 action_dim: int = 2,  # [throttle, steering]
+                 action_dim: int = 3,  # [throttle, steering, brake]
                  hidden_dim: int = 256):
         super().__init__()
         

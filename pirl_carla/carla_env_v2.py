@@ -108,7 +108,7 @@ class CarlaEnv:
         return filtered_points
 
     def _setup_physics_parameters(self):
-        """Setup bicycle model parameters"""
+        """Setup enhanced physics parameters"""
         self.L = 2.5  # wheelbase length (m)
         self.dt = 0.05  # simulation timestep (s)
         self.safe_distance = 5.0  # safe distance for collision avoidance (m)
@@ -119,6 +119,9 @@ class CarlaEnv:
         self.min_speed = 5.0  # minimum desired speed (m/s)
         self.stuck_speed_threshold = 0.1  # speed below which vehicle is considered stuck
         self.initial_grace_period = 50  # steps to allow vehicle to get moving
+        self.mu = 0.7  # friction coefficient
+        self.max_accel = 5.0  # maximum acceleration (m/s^2)
+        self.max_brake_decel = 8.0  # maximum braking deceleration (m/s^2)
 
     def reset(self) -> np.ndarray:
         """Reset environment"""
@@ -217,12 +220,15 @@ class CarlaEnv:
                 steering = math.atan2(right_dot, forward_dot)
                 steering = np.clip(steering, -self.max_steer, self.max_steer)
                 
-                # Gradual acceleration
-                throttle = min(1.0, action[0] * (self._steps / 100))  # Gradually increase throttle
+                # Apply control with throttle, steer, and brake
+                throttle = np.clip(action[0], 0, 1)
+                steer = np.clip(action[1], -1, 1)
+                brake = np.clip(action[2], 0, 1)
+                
                 control = carla.VehicleControl(
-                    throttle=throttle,
-                    steer=float(steering),
-                    brake=0.0,
+                    throttle=float(throttle),
+                    steer=float(steer),
+                    brake=float(brake),
                     hand_brake=False,
                     reverse=False,
                     manual_gear_shift=False,
